@@ -179,7 +179,7 @@ function init() {
   const modeObserver=new MutationObserver(()=>{settleUntil=performance.now()+1400;requestFrame();});modeObserver.observe(document.body,{attributes:true,attributeFilter:['class']});
   function requestFrame(){if(!raf&&!document.hidden)raf=requestAnimationFrame(render);}
   function render(now){raf=0;const delta=lastFrame?Math.min((now-lastFrame)/1000,.05):0;lastFrame=now;
-    if(!paused){elapsed+=delta;if(!dragging)targetAngle+=delta*.16;}
+    if(!paused){elapsed+=delta;if(!dragging)targetAngle+=delta*.20;}
     const ease=reducedMotion.matches?1:1-Math.exp(-delta*9);
     angle=THREE.MathUtils.lerp(angle,targetAngle,ease);tilt=THREE.MathUtils.lerp(tilt,targetTilt,ease);
     const power=document.body.classList.contains('unleashed');
