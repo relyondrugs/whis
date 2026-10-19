@@ -2,6 +2,12 @@
 
 A personal website about creating websites and playing games, featuring a rotating five-leaf grimoire, animated letters, and white/blue and red/black color modes.
 
+## Animation update
+
+The book has gray beveled covers, a raised five-leaf seal and a metal ring, with no corner crosses. Its original letter effect uses fixed cells with cycling characters and a sweeping dissolve. Annotation lines track visible letter cells on the rotating book and hide in Solid mode. Dragging eases into position while the letter animation continues. The book keeps its animation clock running while scrolling, suspends in a hidden browser tab, and resumes on return. Pause and reduced-motion preferences are respected.
+
+About, Work, and Contact text runs a short decoding effect when it enters the viewport while scrolling downward. Scrolling upward shows clean text and immediately stops active glitches. The original text keeps its layout space and remains available to assistive technology. Decorative scrambled letters are hidden from screen readers.
+
 ## Run
 
 Open `index.html` directly in a modern browser, or serve this directory with any static server. WebGL is required for the 3D book. An illustrated cover is displayed when WebGL is unavailable.

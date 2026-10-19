@@ -7,3 +7,12 @@ body.unleashed{--bg:#090909;--fg:#f3f3f3;--muted:#a2a2a7;--accent:#ff2d20;--grid
 
 /* Let book controls receive clicks through the empty footer area. */
 .hero-bottom{pointer-events:none}.hero-bottom a{pointer-events:auto}
+/* Layout-stable, accessible scroll decoding. */
+.decode-word{position:relative;display:inline-block;white-space:nowrap}
+.decode-visual{position:absolute;inset:0;pointer-events:none;opacity:0;overflow:hidden;color:var(--accent)}
+.decoding .decode-original{opacity:0}
+.decoding .decode-visual{opacity:1}
+.decoding .decode-word:not(.unresolved) .decode-visual{color:inherit}
+.decode-target.decoding{animation:decode-arrive 1.1s cubic-bezier(.16,1,.3,1) both}
+@keyframes decode-arrive{0%{opacity:.25;transform:translateY(12px);filter:blur(2px)}28%{opacity:1;filter:blur(0)}100%{transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.decode-target.decoding{animation:none}.decoding .decode-original{opacity:1}.decode-visual{display:none}}

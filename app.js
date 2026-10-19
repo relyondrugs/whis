@@ -14,35 +14,35 @@ mode.addEventListener('click', () => {
   updateParticles();
 });
 
-// Horizontal label underlines connect diagonally to square markers.
-// Their bounded, three-step motion follows the observed reference cadence.
+// Endpoints are supplied by the book renderer from visible ASCII glyph cells.
 const hero = document.querySelector('.hero');
-const stage = document.querySelector('.book-stage');
+const bookView = document.querySelector('#grimoire-view');
 const lineSvg = document.querySelector('#annotation-lines');
 const labels = [...document.querySelectorAll('[data-line]')];
-const offsets = [[[-12,-8],[-4,6],[8,-2]],[[8,4],[19,13],[28,7]],[[-12,2],[7,11],[16,-4]]];
-let phase = 0;
+let letterAnchors=[];
 function drawLines() {
-  const root = hero.getBoundingClientRect(), book = stage.getBoundingClientRect();
+  const root = hero.getBoundingClientRect(), book = bookView.getBoundingClientRect();
   lineSvg.setAttribute('viewBox',`0 0 ${root.width} ${root.height}`);
-  const anchors = [[.55,.24],[.31,.49],[.53,.74]];
   labels.forEach((label,i)=>{
-    const rect=label.getBoundingClientRect(),o=motion.matches?[0,0]:offsets[i][phase];
-    const targetX=book.left-root.left+book.width*anchors[i][0]+o[0];
-    const targetY=book.top-root.top+book.height*anchors[i][1]+o[1];
+    const anchor=letterAnchors[i],path=document.querySelector(`#line-${i}`),marker=document.querySelector(`#marker-${i}`);
+    path.parentElement.style.display=anchor?'':'none';
+    if(!anchor)return;
+    const rect=label.getBoundingClientRect();
+    const targetX=book.left-root.left+anchor.x;
+    const targetY=book.top-root.top+anchor.y;
     const left=rect.left-root.left,right=rect.right-root.left,y=rect.bottom-root.top;
     const from=i===1?left:right,bend=i===1?right:left;
-    document.querySelector(`#line-${i}`).setAttribute('d',`M ${from.toFixed(1)} ${y.toFixed(1)} H ${bend.toFixed(1)} L ${targetX.toFixed(1)} ${targetY.toFixed(1)}`);
-    const marker=document.querySelector(`#marker-${i}`);marker.setAttribute('x',(targetX-3.5).toFixed(1));marker.setAttribute('y',(targetY-3.5).toFixed(1));
+    const edgeX=targetX+(bend>targetX?6:-6);
+    path.setAttribute('d',`M ${from.toFixed(1)} ${y.toFixed(1)} H ${bend.toFixed(1)} L ${edgeX.toFixed(1)} ${targetY.toFixed(1)}`);
+    marker.setAttribute('x',(targetX-6).toFixed(1));marker.setAttribute('y',(targetY-7.5).toFixed(1));
+    marker.setAttribute('width','12');marker.setAttribute('height','15');marker.classList.remove('filled');
+    marker.dataset.letter=anchor.letter;marker.dataset.cell=anchor.cell.join(',');
   });
-  lineSvg.dataset.phase=String(phase);
 }
-const grid = document.querySelector('.hero-grid');
-for(const x of [0,25,50,75,100])for(const y of [0,33.333,66.667,100]){const mark=document.createElement('span');mark.className='grid-cross';mark.textContent='+';mark.style.left=x+'%';mark.style.top=y+'%';grid.appendChild(mark);}
+bookView.addEventListener('grimoire:anchors',event=>{letterAnchors=event.detail;drawLines();});
 new ResizeObserver(drawLines).observe(hero);
 document.fonts.ready.then(drawLines);
 motion.addEventListener('change',()=>{drawLines();updateParticles();});
-setInterval(()=>{if(!motion.matches&&!document.hidden&&hero.getBoundingClientRect().bottom>0){phase=(phase+1)%3;drawLines();}},900);
 drawLines();
 
 // Low-density letter embers only run in anti-magic mode.
@@ -65,6 +65,76 @@ function paintParticles(now){
   ink.globalAlpha=1;if(document.body.classList.contains('unleashed')&&!motion.matches&&!document.hidden)particleFrame=requestAnimationFrame(paintParticles);
 }
 document.addEventListener('visibilitychange',updateParticles);
+
+// Keep the real text accessible and its space reserved while a visual layer decodes.
+(() => {
+  const targets=[...document.querySelectorAll('.section-label,.section-shell h2,.about-copy p,.work-heading p,.project > span:nth-child(2),.contact-email')];
+  const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/<>_#';
+  const states=new Map();
+  let frame=0,lastScrollY=window.scrollY,scrollDirection=0;
+  for(const element of targets){
+    const words=[];
+    const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT);
+    const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
+    for(const node of nodes){
+      const fragment=document.createDocumentFragment();
+      for(const part of node.textContent.split(/(\s+)/)){
+        if(!part.trim()){fragment.append(document.createTextNode(part));continue;}
+        const word=document.createElement('span');word.className='decode-word';
+        const original=document.createElement('span');original.className='decode-original';original.textContent=part;
+        const visual=document.createElement('span');visual.className='decode-visual';visual.setAttribute('aria-hidden','true');visual.textContent=part;
+        word.append(original,visual);fragment.append(word);words.push({word,visual,text:part});
+      }
+      node.replaceWith(fragment);
+    }
+    states.set(element,{words,start:0,lastTick:-1,active:false,inside:false});
+    element.classList.add('decode-target');
+  }
+  function finish(element,state){
+    state.active=false;element.classList.remove('decoding');element.dataset.decode='complete';
+    for(const word of state.words){word.visual.textContent=word.text;word.word.classList.remove('unresolved');}
+  }
+  window.addEventListener('scroll',()=>{
+    const y=window.scrollY,delta=y-lastScrollY;
+    if(Math.abs(delta)<.5)return;
+    scrollDirection=delta>0?1:-1;lastScrollY=y;
+    // Reversing direction immediately restores clean text, including active reveals.
+    if(scrollDirection<0){cancelAnimationFrame(frame);frame=0;for(const [el,state]of states)if(state.active)finish(el,state);}
+  },{passive:true});
+  function animate(now){
+    frame=0;let active=false;
+    for(const [element,state] of states){
+      if(!state.active)continue;
+      const elapsed=now-state.start;
+      if(motion.matches||elapsed>=1100){finish(element,state);continue;}
+      active=true;
+      const tick=Math.floor(elapsed/48);if(tick===state.lastTick)continue;state.lastTick=tick;
+      state.words.forEach((word,i)=>{
+        const delay=(i/Math.max(1,state.words.length-1))*260;
+        const progress=Math.max(0,Math.min(1,(elapsed-delay)/730));
+        const resolved=Math.floor(progress*word.text.length);
+        word.word.classList.toggle('unresolved',progress<1);
+        word.visual.textContent=Array.from(word.text,(char,j)=>j<resolved||!/[\p{L}\p{N}]/u.test(char)?char:alphabet[(i*17+j*11+tick*7)%alphabet.length]).join('');
+      });
+    }
+    if(active&&!document.hidden)frame=requestAnimationFrame(animate);
+  }
+  const reveals=new IntersectionObserver(entries=>{
+    for(const entry of entries){
+      const element=entry.target,state=states.get(element);
+      if(entry.isIntersecting&&!state.inside){
+        state.inside=true;
+        if(motion.matches||scrollDirection!==1){finish(element,state);continue;}
+        state.active=true;state.start=performance.now();state.lastTick=-1;
+        element.classList.add('decoding');element.dataset.decode='running';
+        if(!frame)frame=requestAnimationFrame(animate);
+      }else if(!entry.isIntersecting){state.inside=false;finish(element,state);}
+    }
+  },{threshold:.18,rootMargin:'0px 0px -4% 0px'});
+  targets.forEach(element=>reveals.observe(element));
+  motion.addEventListener('change',()=>{if(motion.matches){cancelAnimationFrame(frame);frame=0;for(const [el,s]of states)finish(el,s);}});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!frame)frame=requestAnimationFrame(animate);});
+})();
 
 let lastTrigger;
 function openDialog(dialog, trigger) { lastTrigger = trigger; dialog.showModal(); document.body.style.overflow = 'hidden'; }
